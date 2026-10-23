@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Copy, Flame, RotateCcw } from "lucide-react";
+import { Copy, Flame, Heart, RotateCcw } from "lucide-react";
 import {
   formatRemain,
   grade,
@@ -11,9 +11,12 @@ import {
 import {
   liveStreak,
   loadSave,
+  HEARTS,
+  heartsFor,
   MODE_IDS,
   scoreFor,
   sealMode,
+  spendHeart,
   type LabSave,
   type ModeId,
 } from "@/lib/chroma/storage";
@@ -68,6 +71,7 @@ function ChromaReady() {
   const [practice, setPractice] = useState(false);
   const [nonce, setNonce] = useState(1);
   const [save, setSave] = useState<LabSave>(() => loadSave());
+  const [practiceHearts, setPracticeHearts] = useState(HEARTS);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -88,6 +92,8 @@ function ChromaReady() {
   const streak = liveStreak(save, mode, dateKey);
   const sealed = scoreFor(save, mode, dateKey);
   const sealedCount = MODE_IDS.filter((id) => scoreFor(save, id, dateKey) != null).length;
+  const hearts = practice ? practiceHearts : heartsFor(save, dateKey);
+
   const seed = practice
     ? hashString(`practice:${mode}:${nonce}`)
     : hashString(`${dateKey}:${mode}`);
@@ -97,12 +103,17 @@ function ChromaReady() {
       const s = scoreFor(save, m.id, dateKey);
       return `${m.label} ${s == null ? "·" : s}`;
     });
-    return [`Chroma · ${prettyDate()}`, ...lines].join("\n");
-  }, [save, dateKey]);
+    return [`Chroma · ${prettyDate()}`, `Lives ${hearts}/${HEARTS}`, ...lines].join("\n");
+  }, [save, dateKey, hearts]);
 
   function select(id: ModeId) {
     setMode(id);
     window.history.replaceState(null, "", `#${id}`);
+  }
+
+  function onMiss() {
+    if (practice) setPracticeHearts((n) => Math.max(0, n - 1));
+    else setSave((prev) => spendHeart(prev, dateKey));
   }
 
   function onSeal(score: number) {
@@ -120,7 +131,7 @@ function ChromaReady() {
     }
   }
 
-  const gameProps = { seed, practice, sealed, onSeal };
+  const gameProps = { seed, practice, sealed, hearts, onMiss, onSeal };
 
   return (
     <ChromaFrame
@@ -166,7 +177,10 @@ function ChromaReady() {
           <button
             type="button"
             aria-pressed={practice}
-            onClick={() => setPractice(true)}
+            onClick={() => {
+              if (!practice) setPracticeHearts(HEARTS);
+              setPractice(true);
+            }}
             className={`h-9 rounded-full px-4 text-sm ${practice ? "bg-ink text-card" : "text-muted"}`}
           >
             Practice
@@ -175,6 +189,29 @@ function ChromaReady() {
       </div>
 
       <p className="mt-4 max-w-xl text-pretty text-muted">{meta.line}</p>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="font-mono text-xs tracking-widest text-muted uppercase">Lives</p>
+        <div className="flex gap-1.5" role="img" aria-label={`${hearts} of ${HEARTS} lives left`}>
+          {Array.from({ length: HEARTS }, (_, i) => (
+            <Heart
+              key={i}
+              className={`size-6 ${i < hearts ? "fill-signal text-signal" : "fill-transparent text-muted"}`}
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+      </div>
+      {hearts === 0 ? (
+        <p className="mt-2 text-sm text-signal">
+          {practice
+            ? "No lives left. New color restores seven."
+            : "No lives left. The bench opens again at midnight."}
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted">Seven lives, shared by every trial. A miss spends one.</p>
+      )}
 
       <section className="mt-4 rounded-2xl bg-tray p-3 sm:p-4" aria-label={meta.label}>
         <div className="rounded-xl bg-card p-4 sm:p-6">
@@ -206,7 +243,10 @@ function ChromaReady() {
           {practice ? (
             <button
               type="button"
-              onClick={() => setNonce((n) => n + 1)}
+              onClick={() => {
+                setNonce((n) => n + 1);
+                setPracticeHearts(HEARTS);
+              }}
               className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-4 text-sm font-medium text-card"
             >
               <RotateCcw className="size-4" />

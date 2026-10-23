@@ -29,6 +29,8 @@ type Props = {
   seed: number;
   practice: boolean;
   sealed: number | null;
+  hearts: number;
+  onMiss: () => void;
   onSeal: (score: number) => void;
 };
 
@@ -106,7 +108,7 @@ export function DialGame(props: Props) {
   );
 }
 
-function DialPlay({ seed, canSeal, onSeal, practice }: Props & { canSeal: boolean }) {
+function DialPlay({ seed, canSeal, onSeal, practice, hearts, onMiss }: Props & { canSeal: boolean }) {
   const puzzle: DialPuzzle = useMemo(() => makeDial(mulberry32(seed)), [seed]);
   const target = puzzle.digits;
   const targetRgb = digitsToRgb(target);
@@ -125,7 +127,7 @@ function DialPlay({ seed, canSeal, onSeal, practice }: Props & { canSeal: boolea
   }
 
   function submit() {
-    if (done) return;
+    if (done || hearts <= 0) return;
     const score = dialScore(target, guess);
     const next = [
       { hex: digitsToHex(guess), score, color: digitsToRgb(guess) },
@@ -133,7 +135,9 @@ function DialPlay({ seed, canSeal, onSeal, practice }: Props & { canSeal: boolea
     ].slice(0, 8);
     setRows(next);
     const nextBest = Math.max(best, score);
+    if (score < 100) onMiss();
     if (score === 100) commit(100);
+    else if (hearts <= 1) setDone(true);
     else if (next.length >= 6) commit(nextBest);
   }
 
@@ -205,7 +209,7 @@ function DialPlay({ seed, canSeal, onSeal, practice }: Props & { canSeal: boolea
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            disabled={done}
+            disabled={done || hearts <= 0}
             className="inline-flex h-11 items-center rounded-full bg-ink px-5 text-sm font-medium text-card disabled:opacity-40"
           >
             Submit {digitsToHex(guess)}
@@ -221,10 +225,10 @@ function DialPlay({ seed, canSeal, onSeal, practice }: Props & { canSeal: boolea
         </div>
         <p className="text-sm text-muted">
           {practice
-            ? "Practice does not touch the streak. Six reads, or a perfect match, ends the trial."
+            ? "Practice does not touch the streak. A wrong read spends a life."
             : expert
-              ? "Expert hides the percentage. Six reads, or a perfect match, seals the day."
-              : "Six reads, or a perfect match, seals the day. 100 is splendid."}
+              ? "Expert hides the percentage. A wrong read spends a life."
+              : "A wrong read spends a life. Six reads, or a perfect match, seals the day."}
         </p>
       </form>
 
@@ -298,6 +302,8 @@ function PickPlay({
   hard,
   canSeal,
   onSeal,
+  hearts,
+  onMiss,
 }: Props & { hard: boolean; canSeal: boolean }) {
   const tiles = hard ? 6 : 3;
   const puzzle: PickPuzzle = useMemo(
@@ -307,7 +313,7 @@ function PickPlay({
   const [round, setRound] = useState(0);
   const [gone, setGone] = useState<number[]>([]);
   const [scores, setScores] = useState<number[]>([]);
-  const [phase, setPhase] = useState<"play" | "hit" | "done">("play");
+  const [phase, setPhase] = useState<"play" | "hit" | "done" | "dead">("play");
   const timer = useRef<number | null>(null);
   const current = puzzle.rounds[round]!;
 
@@ -318,10 +324,12 @@ function PickPlay({
   }, []);
 
   function choose(index: number) {
-    if (phase !== "play" || gone.includes(index)) return;
+    if (phase !== "play" || gone.includes(index) || hearts <= 0) return;
     const picked = current.options[index]!;
     if (!sameRgb(picked, current.target)) {
+      onMiss();
       setGone((g) => [...g, index]);
+      if (hearts <= 1) setPhase("dead");
       return;
     }
     const misses = gone.length;
@@ -342,7 +350,7 @@ function PickPlay({
   }
 
   const PICK_NEAR = ["Wide", "Clear", "Near", "Tight", "Keen"] as const;
-  const show = phase === "hit" || phase === "done" ? current.target : null;
+  const show = phase === "hit" || phase === "done" || phase === "dead" ? current.target : null;
   const headerDark = show ? isDark(show) : false;
 
   return (
@@ -374,7 +382,7 @@ function PickPlay({
             <button
               key={`${round}-${i}`}
               type="button"
-              disabled={dead || phase !== "play"}
+              disabled={dead || phase !== "play" || hearts <= 0}
               aria-label={`Chip ${i + 1}`}
               onClick={() => choose(i)}
               className={`aspect-square rounded-xl border border-line transition duration-200 ${
@@ -388,9 +396,11 @@ function PickPlay({
       <p className="text-sm text-muted" aria-live="polite">
         {phase === "hit"
           ? "That’s the one."
-          : phase === "done"
-            ? `Sealed at ${average(scores)}. A first try is 100; later tries step down.`
-            : "Tap the match. The chips draw closer each code."}
+          : phase === "dead"
+            ? "Out of lives. That miss closed the bench."
+            : phase === "done"
+              ? `Sealed at ${average(scores)}. A first try is 100; later tries step down.`
+              : "Tap the match. A wrong chip spends a life."}
       </p>
     </div>
   );
@@ -408,7 +418,7 @@ export function PinGame(props: Props) {
   );
 }
 
-function PinPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
+function PinPlay({ seed, canSeal, onSeal, hearts, onMiss }: Props & { canSeal: boolean }) {
   const puzzle = useMemo(() => makePin(mulberry32(seed)), [seed]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [sat, setSat] = useState(100);
@@ -465,9 +475,11 @@ function PinPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
   }
 
   function drop() {
-    if (placed) return;
+    if (placed || hearts <= 0) return;
+    const score = pinScore(puzzle.target, aiming);
     setPlaced(aiming);
-    if (canSeal) onSeal(pinScore(puzzle.target, aiming));
+    if (score < 80) onMiss();
+    if (canSeal) onSeal(score);
   }
 
   function nudge(dh: number, dl: number) {
@@ -539,7 +551,7 @@ function PinPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
         <button
           type="button"
           onClick={drop}
-          disabled={!!placed}
+          disabled={!!placed || hearts <= 0}
           className="ml-auto inline-flex h-11 items-center justify-center rounded-full bg-ink px-5 text-sm font-medium text-card disabled:opacity-40"
         >
           {placed ? "Pin dropped" : "Drop pin"}
@@ -580,7 +592,7 @@ function PinPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
         </div>
       ) : (
         <p className="text-sm text-pretty text-muted">
-          Hue runs left to right, lightness from top to bottom. Set saturation, then drop one pin.
+          Hue runs left to right, lightness from top to bottom. A pin under 80 spends a life.
         </p>
       )}
     </div>
@@ -599,12 +611,13 @@ export function OddGame(props: Props) {
   );
 }
 
-function OddPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
+function OddPlay({ seed, canSeal, onSeal, hearts, onMiss }: Props & { canSeal: boolean }) {
   const puzzle: OddPuzzle = useMemo(() => makeOdd(mulberry32(seed)), [seed]);
   const [round, setRound] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [scores, setScores] = useState<number[]>([]);
   const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
   const timer = useRef<number | null>(null);
   const current = puzzle.rounds[round]!;
 
@@ -615,14 +628,20 @@ function OddPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
   }, []);
 
   function choose(index: number) {
-    if (picked != null || done) return;
+    if (picked != null || done || failed || hearts <= 0) return;
     const hit = index === current.index;
     const score = hit ? 100 : 0;
     const next = [...scores, score];
     setPicked(index);
     setScores(next);
+    if (!hit) onMiss();
+    const broke = !hit && hearts <= 1;
     const last = round + 1 >= puzzle.rounds.length;
     timer.current = window.setTimeout(() => {
+      if (broke) {
+        setFailed(true);
+        return;
+      }
       if (last) {
         setDone(true);
         if (canSeal) onSeal(average(next));
@@ -652,7 +671,7 @@ function OddPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
               key={`${round}-${i}`}
               type="button"
               aria-label={`Chip ${i + 1}`}
-              disabled={picked != null || done}
+              disabled={picked != null || done || failed || hearts <= 0}
               onClick={() => choose(i)}
               className={`aspect-square rounded-lg border ${
                 revealed && isOdd ? "border-ink" : "border-transparent"
@@ -663,7 +682,9 @@ function OddPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
         })}
       </div>
       <p className="text-sm text-muted" aria-live="polite">
-        {done ? (
+        {failed ? (
+          "Out of lives. That miss closed the bench."
+        ) : done ? (
           <>
             <Check className="mr-1 inline size-4" />
             Sealed at {average(scores)}. The odd chip picks up a dark edge when the grid opens.
@@ -671,7 +692,7 @@ function OddPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
         ) : picked != null ? (
           picked === current.index ? "Caught it." : "That one matched the field."
         ) : (
-          "One chip is shifted. The rest are identical."
+          "One chip is shifted. A miss spends a life."
         )}
       </p>
     </div>
@@ -690,12 +711,13 @@ export function GapGame(props: Props) {
   );
 }
 
-function GapPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
+function GapPlay({ seed, canSeal, onSeal, hearts, onMiss }: Props & { canSeal: boolean }) {
   const puzzle: GapPuzzle = useMemo(() => makeGap(mulberry32(seed)), [seed]);
   const [round, setRound] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [scores, setScores] = useState<number[]>([]);
   const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
   const timer = useRef<number | null>(null);
   const current = puzzle.rounds[round]!;
 
@@ -706,13 +728,19 @@ function GapPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
   }, []);
 
   function choose(index: number) {
-    if (picked != null || done) return;
+    if (picked != null || done || failed || hearts <= 0) return;
     const hit = index === current.answer;
     const next = [...scores, hit ? 100 : 0];
     setPicked(index);
     setScores(next);
+    if (!hit) onMiss();
+    const broke = !hit && hearts <= 1;
     const last = round + 1 >= puzzle.rounds.length;
     timer.current = window.setTimeout(() => {
+      if (broke) {
+        setFailed(true);
+        return;
+      }
       if (last) {
         setDone(true);
         if (canSeal) onSeal(average(next));
@@ -758,7 +786,7 @@ function GapPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
               key={`${round}-${i}`}
               type="button"
               aria-label={`Candidate ${i + 1}`}
-              disabled={picked != null || done}
+              disabled={picked != null || done || failed || hearts <= 0}
               onClick={() => choose(i)}
               className={`h-16 rounded-xl border-2 sm:h-20 ${
                 show && correct ? "border-ink" : show && chosen ? "border-signal" : "border-transparent"
@@ -769,13 +797,15 @@ function GapPlay({ seed, canSeal, onSeal }: Props & { canSeal: boolean }) {
         })}
       </div>
       <p className="text-sm text-muted" aria-live="polite">
-        {done
-          ? `Sealed at ${average(scores)}.`
-          : picked == null
-            ? "Choose the color that completes the ramp."
-            : picked === current.answer
-              ? "It sits cleanly."
-              : "The hole shows the true stop."}
+        {failed
+          ? "Out of lives. That miss closed the bench."
+          : done
+            ? `Sealed at ${average(scores)}.`
+            : picked == null
+              ? "Choose the color that completes the ramp. A miss spends a life."
+              : picked === current.answer
+                ? "It sits cleanly."
+                : "The hole shows the true stop."}
       </p>
     </div>
   );
