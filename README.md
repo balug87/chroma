@@ -5,7 +5,7 @@ Five daily color puzzles in one lab bench.
 | Trial | What you do |
 | --- | --- |
 | Dial | Match a random field with three hex digits (the Guess My RGB read). |
-| Pick | An RGB code is shown. Tap the chip that is that color. |
+| Pick | An RGB code is shown. Tap the chip that is that color. Five rounds, and the chips draw closer each time. |
 | Pin | The RGB numbers are given. Drop a pin on a hue × lightness spectrum. |
 | Odd | Find the one chip that was nudged off an otherwise even grid. |
 | Gap | Put the missing stop back into a color ramp. |

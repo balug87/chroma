@@ -28,7 +28,7 @@ const MODES: { id: ModeId; label: string; line: string }[] = [
   {
     id: "pick",
     label: "Pick",
-    line: "The code is on the card. One chip is that color. The others only look related.",
+    line: "The code is on the card. Six chips start far apart. By the fifth code they sit almost on top of each other.",
   },
   {
     id: "pin",

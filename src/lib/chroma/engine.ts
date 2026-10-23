@@ -180,29 +180,84 @@ export function makeDial(rng: () => number): DialPuzzle {
   };
 }
 
-function makeOptions(rng: () => number, target: RGB, count: number): RGB[] {
-  const opts: RGB[] = [target];
-  let span = 78;
-  let guard = 0;
-  while (opts.length < count && guard < 500) {
-    guard++;
-    if (guard % 50 === 0) span += 28;
-    const jitter = () => Math.round((rng() * 2 - 1) * span);
-    const c = {
-      r: clamp(target.r + jitter(), 0, 255),
-      g: clamp(target.g + jitter(), 0, 255),
-      b: clamp(target.b + jitter(), 0, 255),
-    };
-    const minDist = Math.max(26, 100 - span);
-    if (opts.every((o) => rgbDistance(o, c) > minDist)) opts.push(c);
+/** How far the decoys sit from the code. Round 0 is obvious; round 4 is a keen eye. */
+const PICK_BANDS = [
+  { want: 190, slack: 70, apart: 90 },
+  { want: 120, slack: 40, apart: 55 },
+  { want: 68, slack: 22, apart: 28 },
+  { want: 36, slack: 12, apart: 14 },
+  { want: 16, slack: 5, apart: 7 },
+] as const;
+
+function sampleDecoy(rng: () => number, target: RGB, want: number, slack: number): RGB | null {
+  for (let attempt = 0; attempt < 48; attempt++) {
+    let dr = rng() * 2 - 1;
+    let dg = rng() * 2 - 1;
+    let db = rng() * 2 - 1;
+    const len = Math.hypot(dr, dg, db) || 1;
+    dr /= len;
+    dg /= len;
+    db /= len;
+    let lo = 0;
+    let hi = 440;
+    let best: RGB = target;
+    for (let step = 0; step < 18; step++) {
+      const mid = (lo + hi) / 2;
+      const c = {
+        r: clamp(Math.round(target.r + dr * mid), 0, 255),
+        g: clamp(Math.round(target.g + dg * mid), 0, 255),
+        b: clamp(Math.round(target.b + db * mid), 0, 255),
+      };
+      best = c;
+      if (rgbDistance(target, c) < want) lo = mid;
+      else hi = mid;
+    }
+    const dist = rgbDistance(target, best);
+    if (!sameRgb(best, target) && Math.abs(dist - want) <= slack) return best;
   }
-  while (opts.length < count) {
-    const i = opts.length;
-    opts.push({
-      r: (target.r + i * 67) % 256,
-      g: (target.g + i * 41) % 256,
-      b: (target.b + i * 113) % 256,
-    });
+  return null;
+}
+
+function makeOptions(rng: () => number, target: RGB, count: number, round: number): RGB[] {
+  const band = PICK_BANDS[Math.min(round, PICK_BANDS.length - 1)]!;
+  const opts: RGB[] = [target];
+  let guard = 0;
+  let want: number = band.want;
+  let slack: number = band.slack;
+  let apart: number = band.apart;
+  while (opts.length < count && guard < 240) {
+    guard++;
+    if (guard % 40 === 0) {
+      want = Math.max(8, want - 4);
+      slack += 4;
+      apart = Math.max(4, apart - 2);
+    }
+    const c = sampleDecoy(rng, target, want, slack);
+    if (!c) continue;
+    if (opts.some((o) => sameRgb(o, c) || rgbDistance(o, c) < apart)) continue;
+    opts.push(c);
+  }
+  const dirs: [number, number, number][] = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 1, 0],
+    [1, 0, 1],
+    [0, 1, -1],
+    [-1, 1, 0],
+    [1, -1, 1],
+  ];
+  let k = 0;
+  while (opts.length < count && k < 80) {
+    const d = dirs[k % dirs.length]!;
+    const mag = Math.max(5, Math.round(want * (0.65 + (k % 4) * 0.12)));
+    const c = {
+      r: clamp(target.r + d[0] * mag, 0, 255),
+      g: clamp(target.g + d[1] * mag, 0, 255),
+      b: clamp(target.b + d[2] * mag, 0, 255),
+    };
+    k++;
+    if (!sameRgb(c, target) && opts.every((o) => !sameRgb(o, c))) opts.push(c);
   }
   return shuffle(rng, opts);
 }
@@ -211,7 +266,7 @@ export function makePick(rng: () => number, tiles: number): PickPuzzle {
   const rounds: PickRound[] = [];
   for (let i = 0; i < 5; i++) {
     const target = randColor(rng);
-    rounds.push({ target, options: makeOptions(rng, target, tiles) });
+    rounds.push({ target, options: makeOptions(rng, target, tiles, i) });
   }
   return { rounds };
 }

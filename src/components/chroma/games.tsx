@@ -257,7 +257,7 @@ export function PickGame(props: Props) {
     <SealedGate
       practice={props.practice}
       sealed={props.sealed}
-      detail="Five codes, six chips each. First-click hits score highest."
+      detail="Five codes. The chips start far apart and draw together. A first click scores highest."
     >
       {(canSeal) => (
         <div className="flex flex-col gap-4">
@@ -341,6 +341,7 @@ function PickPlay({
     }, 700);
   }
 
+  const PICK_NEAR = ["Wide", "Clear", "Near", "Tight", "Keen"] as const;
   const show = phase === "hit" || phase === "done" ? current.target : null;
   const headerDark = show ? isDark(show) : false;
 
@@ -355,7 +356,7 @@ function PickPlay({
       >
         <div className="flex items-center justify-between gap-3">
           <p className="font-mono text-xs tracking-widest uppercase opacity-70">
-            {phase === "done" ? "Read" : `Code ${round + 1} of ${puzzle.rounds.length}`}
+            {phase === "done" ? "Read" : `Code ${round + 1} of ${puzzle.rounds.length} · ${PICK_NEAR[round] ?? "Keen"}`}
           </p>
           <Dots total={puzzle.rounds.length} index={scores.length} />
         </div>
@@ -389,7 +390,7 @@ function PickPlay({
           ? "That’s the one."
           : phase === "done"
             ? `Sealed at ${average(scores)}. A first try is 100; later tries step down.`
-            : "Tap the chip that matches the code. Wrong chips leave the bench."}
+            : "Tap the match. The chips draw closer each code."}
       </p>
     </div>
   );
