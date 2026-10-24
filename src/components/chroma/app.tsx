@@ -103,7 +103,7 @@ function ChromaReady() {
       const s = scoreFor(save, m.id, dateKey);
       return `${m.label} ${s == null ? "·" : s}`;
     });
-    return [`Chroma · ${prettyDate()}`, `Lives ${hearts}/${HEARTS}`, ...lines].join("\n");
+    return [`Chroma · ${prettyDate()}`, `Lives ${hearts}/${HEARTS}`, ...lines, window.location.origin].join("\n");
   }, [save, dateKey, hearts]);
 
   function select(id: ModeId) {
@@ -234,10 +234,7 @@ function ChromaReady() {
           ) : (
             <p>Today’s five stay put until midnight. Next set in {remain}.</p>
           )}
-          <p className="mt-2">
-            Also worth a bench: rebuild a color from memory after it vanishes, pick its complement on a
-            wheel, sort a shuffled lightness ramp, or name the pigment.
-          </p>
+          <p className="mt-2">Your streak stays on this device. The set resets at local midnight.</p>
         </div>
         <div className="flex gap-2">
           {practice ? (

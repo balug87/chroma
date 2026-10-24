@@ -1,5 +1,6 @@
 {
-  "title": "Chroma",
+  "title": "Chroma — daily color puzzles",
+  "description": "Five daily color puzzles. Read a pigment, pick a chip, pin the spectrum.",
   "type": "x:game",
   "card": "custom"
 }

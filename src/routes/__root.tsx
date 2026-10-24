@@ -3,14 +3,12 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "Chroma";
-
 export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: APP_NAME },
+      { title: "Chroma — daily color puzzles" },
       { name: "description", content: "Five daily color puzzles. Read a pigment, pick a chip, pin the spectrum." },
       { name: "theme-color", content: "#EFEEEA" },
     ],
